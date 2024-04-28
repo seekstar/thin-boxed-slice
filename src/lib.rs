@@ -5,14 +5,16 @@ use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
 use core::slice;
 
-use allocator_api2::alloc::{self, Allocator, Global};
+use allocator_api2::alloc::{Allocator, Global};
 
 mod tests;
 
 #[derive(Debug)]
 pub struct ThinBoxedSlice<T, A: Allocator = Global> {
+    // TODO: Tell the compiler that this pointer is non-null
     p: *mut u8,
-    phantom: PhantomData<(T, A)>,
+    allocator: A,
+    phantom: PhantomData<T>,
 }
 
 impl<T, A: Allocator> ThinBoxedSlice<T, A> {
@@ -38,31 +40,21 @@ impl<T, A: Allocator> ThinBoxedSlice<T, A> {
     }
 }
 
-impl<T, A: Allocator> Drop for ThinBoxedSlice<T, A> {
-    fn drop(&mut self) {
+impl<T: Clone, A: Allocator> ThinBoxedSlice<T, A> {
+    pub fn new_in(s: &[T], allocator: A) -> Self {
+        let layout = Self::layout(s.len());
         unsafe {
-            alloc::dealloc(self.p, Self::layout(self.len()));
-        }
-    }
-}
-
-impl<T: Clone, A: Allocator> From<&[T]> for ThinBoxedSlice<T, A> {
-    fn from(value: &[T]) -> Self {
-        let layout = Self::layout(value.len());
-        unsafe {
-            let p = alloc::alloc(layout);
-            if p.is_null() {
-                alloc::handle_alloc_error(layout);
-            }
-            p.cast::<usize>().write(value.len());
+            let p = allocator.allocate(layout).unwrap().as_ptr().cast::<u8>();
+            p.cast::<usize>().write(s.len());
             let ret = Self {
                 p,
+                allocator,
                 phantom: PhantomData::default(),
             };
             let mut v = ret.array_ptr();
             // Useful unstable: maybe_uninit_write_slice
-            for i in 0..value.len() {
-                v.write(value[i].clone());
+            for i in 0..s.len() {
+                v.write(s[i].clone());
                 v = v.add(1);
             }
             ret
@@ -70,7 +62,24 @@ impl<T: Clone, A: Allocator> From<&[T]> for ThinBoxedSlice<T, A> {
     }
 }
 
-impl<T: Clone, A: Allocator, const N: usize> From<&[T; N]>
+impl<T, A: Allocator> Drop for ThinBoxedSlice<T, A> {
+    fn drop(&mut self) {
+        unsafe {
+            self.allocator.deallocate(
+                (&*self.p.cast::<u8>()).into(),
+                Self::layout(self.len()),
+            );
+        }
+    }
+}
+
+impl<T: Clone, A: Allocator + Default> From<&[T]> for ThinBoxedSlice<T, A> {
+    fn from(value: &[T]) -> Self {
+        Self::new_in(value, A::default())
+    }
+}
+
+impl<T: Clone, A: Allocator + Default, const N: usize> From<&[T; N]>
     for ThinBoxedSlice<T, A>
 {
     fn from(value: &[T; N]) -> Self {
