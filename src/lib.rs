@@ -26,6 +26,7 @@ use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
 use core::ops::Deref;
+use core::ptr::NonNull;
 use core::slice;
 
 use allocator_api2::alloc::{self, Allocator, Global};
@@ -34,8 +35,7 @@ mod tests;
 
 #[derive(Debug)]
 pub struct ThinBoxedSlice<T, A: Allocator = Global> {
-    // TODO: Tell the compiler that this pointer is non-null
-    p: *mut u8,
+    p: NonNull<u8>,
     allocator: A,
     phantom: PhantomData<T>,
 }
@@ -53,10 +53,11 @@ impl<T, A: Allocator> ThinBoxedSlice<T, A> {
         alloc::Layout::from_size_align(alloc_len, align).unwrap()
     }
     fn array_ptr(&self) -> *mut T {
-        unsafe { self.p.add(Self::array_offset()) as *mut T }
+        unsafe { self.p.clone().as_ptr().add(Self::array_offset()) as *mut T }
     }
     fn len(&self) -> usize {
-        unsafe { self.p.cast::<usize>().read() }
+        // Useful unstable: non_null_convenience
+        unsafe { self.p.cast::<usize>().clone().as_ptr().read() }
     }
 }
 
@@ -64,13 +65,14 @@ impl<T: Clone, A: Allocator> ThinBoxedSlice<T, A> {
     pub fn new_in(s: &[T], allocator: A) -> Self {
         let layout = Self::layout(s.len());
         unsafe {
-            let p = allocator.allocate(layout).unwrap().as_ptr().cast::<u8>();
-            p.cast::<usize>().write(s.len());
+            let p = allocator.allocate(layout).unwrap().cast::<u8>();
             let ret = Self {
-                p,
+                p: p.clone(),
                 allocator,
                 phantom: PhantomData::default(),
             };
+            // Useful unstable: non_null_convenience
+            p.cast::<usize>().as_ptr().write(s.len());
             let mut v = ret.array_ptr();
             // Useful unstable: maybe_uninit_write_slice
             for i in 0..s.len() {
@@ -85,10 +87,7 @@ impl<T: Clone, A: Allocator> ThinBoxedSlice<T, A> {
 impl<T, A: Allocator> Drop for ThinBoxedSlice<T, A> {
     fn drop(&mut self) {
         unsafe {
-            self.allocator.deallocate(
-                (&*self.p.cast::<u8>()).into(),
-                Self::layout(self.len()),
-            );
+            self.allocator.deallocate(self.p, Self::layout(self.len()));
         }
     }
 }
