@@ -1,6 +1,6 @@
 [package]
 name = "thin-boxed-slice"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 description = "`ThinBoxedSlice` stores the size of the slice before the content of the slice, so that `size_of::<ThinBoxedSlice>` is only the size of a pointer."
 license = "MPL-2.0"

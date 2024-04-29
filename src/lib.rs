@@ -10,11 +10,12 @@
 //!
 //! ```
 //! use thin_boxed_slice::ThinBoxedSlice;
+//! use core::ops::Deref;
 //!
 //! let data = &[1, 2, 3];
 //! let result = ThinBoxedSlice::<i32>::from(data);
 //! assert_eq!(result.len(), 3);
-//! assert_eq!(result.as_slice(), data);
+//! assert_eq!(result.deref(), data);
 //! ```
 
 use core::borrow::Borrow;
@@ -22,6 +23,7 @@ use core::cmp::max;
 use core::hash::Hash;
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
+use core::ops::Deref;
 use core::slice;
 
 use allocator_api2::alloc::{Allocator, Global};
@@ -51,11 +53,8 @@ impl<T, A: Allocator> ThinBoxedSlice<T, A> {
     fn array_ptr(&self) -> *mut T {
         unsafe { self.p.add(Self::array_offset()) as *mut T }
     }
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         unsafe { self.p.cast::<usize>().read() }
-    }
-    pub fn as_slice(&self) -> &[T] {
-        unsafe { slice::from_raw_parts(self.array_ptr(), self.len()) }
     }
 }
 
@@ -106,15 +105,22 @@ impl<T: Clone, A: Allocator + Default, const N: usize> From<&[T; N]>
     }
 }
 
+impl<T, A: Allocator> Deref for ThinBoxedSlice<T, A> {
+    type Target = [T];
+    fn deref(&self) -> &Self::Target {
+        unsafe { slice::from_raw_parts(self.array_ptr(), self.len()) }
+    }
+}
+
 impl<T, A: Allocator> Borrow<[T]> for ThinBoxedSlice<T, A> {
     fn borrow(&self) -> &[T] {
-        self.as_slice()
+        self.deref()
     }
 }
 
 impl<T: PartialEq, A: Allocator> PartialEq for ThinBoxedSlice<T, A> {
     fn eq(&self, other: &Self) -> bool {
-        self.as_slice() == other.as_slice()
+        self.deref() == other.deref()
     }
 }
 
@@ -124,6 +130,6 @@ impl<T: PartialEq, A: Allocator> Eq for ThinBoxedSlice<T, A> {
 
 impl<T: Hash, A: Allocator> Hash for ThinBoxedSlice<T, A> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.as_slice().hash(state);
+        self.deref().hash(state);
     }
 }
