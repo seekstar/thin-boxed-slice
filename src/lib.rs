@@ -17,6 +17,22 @@
 //! assert_eq!(result.len(), 3);
 //! assert_eq!(result.deref(), data);
 //! ```
+//!
+//! `ThinBoxedSlice` is extremely useful to be the key of hash tables, because
+//! hash tables usually allocates more slots than elements to reduce hash
+//! collisions, and reduce the size of key with `ThinBoxedSlice` can reduce
+//! the memory consumption of extra slots allocated. Example:
+//!
+//! ```
+//! use thin_boxed_slice::ThinBoxedSlice;
+//! use std::collections::HashSet;
+//! use std::ops::Deref;
+//!
+//! let mut s: HashSet<ThinBoxedSlice<u8>> = HashSet::new();
+//! s.insert(ThinBoxedSlice::from("123".as_bytes()));
+//! s.insert(ThinBoxedSlice::from("456".as_bytes()));
+//! assert_eq!(s.get("123".as_bytes()).unwrap().deref(), "123".as_bytes());
+//! ```
 
 #![cfg_attr(not(test), no_std)]
 
