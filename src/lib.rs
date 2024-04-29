@@ -18,15 +18,17 @@
 //! assert_eq!(result.deref(), data);
 //! ```
 
+#![cfg_attr(not(test), no_std)]
+
 use core::borrow::Borrow;
 use core::cmp::max;
-use core::hash::Hash;
+use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
 use core::ops::Deref;
 use core::slice;
 
-use allocator_api2::alloc::{Allocator, Global};
+use allocator_api2::alloc::{self, Allocator, Global};
 
 mod tests;
 
@@ -45,10 +47,10 @@ impl<T, A: Allocator> ThinBoxedSlice<T, A> {
         let padding = if misalign == 0 { 0 } else { align - misalign };
         size_of::<usize>() + padding
     }
-    fn layout(n: usize) -> std::alloc::Layout {
+    fn layout(n: usize) -> alloc::Layout {
         let alloc_len = Self::array_offset() + n * size_of::<T>();
         let align = max(align_of::<usize>(), align_of::<T>());
-        std::alloc::Layout::from_size_align(alloc_len, align).unwrap()
+        alloc::Layout::from_size_align(alloc_len, align).unwrap()
     }
     fn array_ptr(&self) -> *mut T {
         unsafe { self.p.add(Self::array_offset()) as *mut T }
@@ -129,7 +131,7 @@ impl<T: PartialEq, A: Allocator> Eq for ThinBoxedSlice<T, A> {
 }
 
 impl<T: Hash, A: Allocator> Hash for ThinBoxedSlice<T, A> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.deref().hash(state);
     }
 }
