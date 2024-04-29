@@ -41,7 +41,7 @@ use core::cmp::max;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
-use core::ops::Deref;
+use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 use core::slice;
 
@@ -126,6 +126,12 @@ impl<T, A: Allocator> Deref for ThinBoxedSlice<T, A> {
     type Target = [T];
     fn deref(&self) -> &Self::Target {
         unsafe { slice::from_raw_parts(self.array_ptr(), self.len()) }
+    }
+}
+
+impl<T, A: Allocator> DerefMut for ThinBoxedSlice<T, A> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { slice::from_raw_parts_mut(self.array_ptr(), self.len()) }
     }
 }
 
