@@ -1,3 +1,22 @@
+//! `ThinBoxedSlice` stores the size of the slice before the content of the slice, so that `size_of::<ThinBoxedSlice>` is only the size of a pointer:
+//!
+//! ```
+//! use core::mem::size_of;
+//! use thin_boxed_slice::ThinBoxedSlice;
+//! assert_eq!(size_of::<ThinBoxedSlice<u8>>(), size_of::<*mut u8>());
+//! ```
+//!
+//! # Examples
+//!
+//! ```
+//! use thin_boxed_slice::ThinBoxedSlice;
+//!
+//! let data = &[1, 2, 3];
+//! let result = ThinBoxedSlice::<i32>::from(data);
+//! assert_eq!(result.len(), 3);
+//! assert_eq!(result.as_slice(), data);
+//! ```
+
 use core::borrow::Borrow;
 use core::cmp::max;
 use core::hash::Hash;
